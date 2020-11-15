@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include <unistd.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #include "BENSCHILLIBOWL.h"
 
@@ -23,8 +23,17 @@ BENSCHILLIBOWL *bcb;
  *  - add their order to the restaurant.
  */
 void* BENSCHILLIBOWLCustomer(void* tid) {
-    int customer_id = (int)(long) tid;
-	return NULL;
+  int customer_id = *((int*) tid);
+  
+  int i;
+  for (i = 0; i<ORDERS_PER_CUSTOMER; i++){
+    Order* tempOrder = (Order *) malloc(sizeof(Order));
+    tempOrder->menu_item = PickRandomMenuItem();
+    tempOrder->customer_id = customer_id;
+    tempOrder->next = NULL;
+    
+    AddOrder(bcb, tempOrder);
+  }
 }
 
 /**
@@ -36,8 +45,15 @@ void* BENSCHILLIBOWLCustomer(void* tid) {
  * receive an order.
  */
 void* BENSCHILLIBOWLCook(void* tid) {
-    int cook_id = (int)(long) tid;
+  int cook_id = *((int*) tid);
 	int orders_fulfilled = 0;
+  
+  Order* order = GetOrder(bcb);
+  while (order){
+    free(order);
+    orders_fulfilled+=1;
+    order = GetOrder(bcb);
+  }
 	printf("Cook #%d fulfilled %d orders\n", cook_id, orders_fulfilled);
 	return NULL;
 }
@@ -50,5 +66,36 @@ void* BENSCHILLIBOWLCook(void* tid) {
  *  - close the restaurant.
  */
 int main() {
-    return 0;
+  
+  bcb = OpenRestaurant(BENSCHILLIBOWL_SIZE, EXPECTED_NUM_ORDERS);
+  
+  pthread_t customersThreads[NUM_CUSTOMERS];
+  pthread_t cooksThreads[NUM_COOKS];
+  
+  int customerId[NUM_CUSTOMERS];
+  int cookId[NUM_COOKS];
+  
+  int i;
+  
+  for (i = 0; i<NUM_CUSTOMERS; i++){
+    customerId[i] = i;
+    pthread_create(&customersThreads[i], NULL, BENSCHILLIBOWLCustomer, &customerId[i]);
+  }
+  
+  for (i = 0; i<NUM_COOKS; i++){
+    cookId[i] = i;
+    pthread_create(&cooksThreads[i], NULL, BENSCHILLIBOWLCook, &cookId[i]);
+  }
+  
+  for (i = 0; i<NUM_CUSTOMERS; i++){
+    pthread_join(customersThreads[i], NULL);
+  }
+  
+  for (i = 0; i<NUM_COOKS; i++){
+    pthread_join(cooksThreads[i], NULL);
+  }
+  
+  CloseRestaurant(bcb); 
+  
+  return 0;
 }
